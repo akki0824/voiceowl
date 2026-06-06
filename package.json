@@ -1,0 +1,26 @@
+{
+  "name": "voiceowl-api",
+  "version": "0.1.0",
+  "main": "src/index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "lint": "eslint . --ext .js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watchAll",
+    "build": "echo \"no build step\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^7.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "supertest": "^6.3.0",
+    "mongodb-memory-server": "^8.12.0",
+    "nodemon": "^2.0.0",
+    "eslint": "^8.0.0"
+  }
+}

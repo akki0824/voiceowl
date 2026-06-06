@@ -1,0 +1,73 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:6.0
+        options: --health-cmd "mongo --eval 'db.adminCommand(\"ping\")'" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run ESLint
+        run: npm run lint || true
+
+      - name: Semgrep scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: 'p/ci' # or a custom ruleset
+        continue-on-error: false
+
+      - name: tfsec scan
+        uses: aquasecurity/tfsec-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run trivy image scan (on local Docker build)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          severity: 'CRITICAL,HIGH'
+
+  build-and-push:
+    needs: test-and-scan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Build docker image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/voiceowl-api:${{ github.sha }} .
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Trivy scan built image
+        run: |
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/voiceowl-api:${{ github.sha }} local/voiceowl-api:${{ github.sha }}
+          docker save local/voiceowl-api:${{ github.sha }} | trivy --input - --exit-code 1 --format table --severity CRITICAL,HIGH
+      - name: Push image
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/voiceowl-api:${{ github.sha }}
